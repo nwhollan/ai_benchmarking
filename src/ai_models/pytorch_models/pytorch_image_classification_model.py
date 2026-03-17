@@ -231,24 +231,22 @@ def main() -> None:
     if USE_COMPILE:
         model = torch.compile(model)
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=LR)
-
     x = torch.randn(BATCH_SIZE, *IMAGE_SHAPE, device=DEVICE)
     y = torch.randint(0, NUM_CLASSES, (BATCH_SIZE,), device=DEVICE)
 
     print(f"Device: {DEVICE}")
     print(f"torch.compile enabled: {USE_COMPILE}")
 
-    inf_stats = benchmark_inference(model, x)
-    print("Inference benchmark:", inf_stats)
+    inference_stats = benchmark_inference(model, x)
+    print("Inference benchmark:", inference_stats)
 
     # fresh model for train-step benchmark
     model2 = SmallCNN(NUM_CLASSES).to(DEVICE)
     if USE_COMPILE:
         model2 = torch.compile(model2)
+    criterion = nn.CrossEntropyLoss()
     optimizer2 = torch.optim.Adam(model2.parameters(), lr=LR)
-    train_stats = benchmark_train_step(model2, x, y, criterion, optimizer2)
+    train_stats = benchmark_train_step(model2, x, y, criterion, optimizer=optimizer2)
     print("Training-step benchmark:", train_stats)
 
     time_to_quality()

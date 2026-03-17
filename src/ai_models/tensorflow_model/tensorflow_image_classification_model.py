@@ -209,7 +209,7 @@ def main() -> None:
     set_seed(42)
 
     model = make_model(NUM_CLASSES)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=LR)
+    #optimizer = tf.keras.optimizers.Adam(learning_rate=LR)
     loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
 
     x = tf.random.normal((BATCH_SIZE, *IMAGE_SHAPE))
@@ -218,8 +218,8 @@ def main() -> None:
     print("CPU only:" if USE_CPU_ONLY else "Default device selection")
     print(f"tf.function enabled: {USE_TF_FUNCTION}")
 
-    inf_stats = benchmark_inference(model, x)
-    print("Inference benchmark:", inf_stats)
+    inference_stats = benchmark_inference(model, x)
+    print("Inference benchmark:", inference_stats)
 
     model2 = make_model(NUM_CLASSES)
     optimizer2 = tf.keras.optimizers.Adam(learning_rate=LR)

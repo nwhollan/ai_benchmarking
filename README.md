@@ -1,8 +1,8 @@
+This repo contains code to run PyTorch and TensorFlow versions of two different machine learning models and obtain benchmark results for three different benchmarks. 
 
+## Benchmarks:
 
-trainset = torchvision.datasets.CIFAR10(
-    root='./data',      # Directory where data will be saved
-    train=True,         # Request the training dataset
-    download=True,      # Download the dataset if not already present
-    transform=transform # Apply the defined transformations
-)
+1. Forward pass latency
+2. Training step itteration latency 
+3. Time-to-quality benchmark
+
