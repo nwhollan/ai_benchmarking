@@ -16,9 +16,9 @@ WARMUP_STEPS = 50
 TIMED_STEPS = 200
 EPOCHS = 10
 LR = 1e-3
-TARGET_VAL_ACC = 0.80
+TARGET_TEST_ACC = 0.80
 
-# For clean comparison on Mac, use CPU first
+# Initial tests: use CPU 
 USE_CPU_ONLY = True
 USE_TF_FUNCTION = False
 
@@ -166,9 +166,9 @@ def time_to_quality() -> None:
     optimizer = tf.keras.optimizers.Adam(learning_rate=LR)
     loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
 
-    def train_step(inp, target):
+    def train_step(input, target):
         with tf.GradientTape() as tape:
-            logits = model(inp, training=True)
+            logits = model(input, training=True)
             loss = loss_fn(target, logits)
         grads = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
@@ -187,20 +187,20 @@ def time_to_quality() -> None:
             _ = train_step_fn(xb, yb)
             total_steps += 1
 
-        val_acc = evaluate(model, test_ds)
+        test_acc = evaluate(model, test_ds)
         elapsed = time.perf_counter() - start
-        print(f"[epoch {epoch}] val_acc={val_acc:.4f} elapsed_s={elapsed:.2f} steps={total_steps}")
+        print(f"[epoch {epoch}] val_acc={test_acc:.4f} elapsed_s={elapsed:.2f} steps={total_steps}")
 
-        if val_acc >= TARGET_VAL_ACC:
+        if test_acc >= TARGET_VAL_ACC:
             print(
-                f"Reached target accuracy {TARGET_VAL_ACC:.2%} "
+                f"Reached target accuracy {TARGET_TEST_ACC:.2%} "
                 f"in {elapsed:.2f}s over {total_steps} steps."
             )
             return
 
     elapsed = time.perf_counter() - start
     print(
-        f"Did not reach target accuracy {TARGET_VAL_ACC:.2%} "
+        f"Did not reach target accuracy {TARGET_TEST_ACC:.2%} "
         f"within {EPOCHS} epochs. Final elapsed_s={elapsed:.2f}, steps={total_steps}"
     )
 
