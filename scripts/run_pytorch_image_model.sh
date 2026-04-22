@@ -1,1 +1,0 @@
-python -m src.ai_models.pytorch_models.pytorch_image_classification_model
