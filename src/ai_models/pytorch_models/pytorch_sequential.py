@@ -14,11 +14,11 @@ WARMUP_STEPS = 100
 TIMED_STEPS = 200
 BATCH_SIZE = 64
 NUM_RUNS = 100
+NUM_BUILDS = 300
 USE_COMPILE = True
-DEVICE = "cpu"
 
-BUILD_TEST_LAYER_NUMS = [10, 100, 500]
-FORWARD_TEST_LAYER_NUMS = [10, 100, 500]
+BUILD_TEST_LAYER_NUMS = [10,100,500]
+FORWARD_TEST_LAYER_NUMS = [10,100,500]
 
 
 class SimpleNN(nn.Module):
@@ -47,33 +47,17 @@ class SimpleNN(nn.Module):
         return x
 
 
-def summarize_results(times: list[float]) -> dict:
-    mean_s = statistics.mean(times)
-    median_s = statistics.median(times)
-    p95_s = np.percentile(times, 95)
-
-    return {
-        "mean_ms": mean_s * 1000,
-        "median_ms": median_s * 1000,
-        "p95_ms": p95_s * 1000,
-        }
+def benchmark_cold_start_time(num_layers: int, x: torch.Tensor, compile: bool=USE_COMPILE) -> dict:
+    model = SimpleNN(SAMPLE_HIDDEN_LAYER_DIM, NUM_CLASSES, num_layers)
+    if compile:
+        model = torch.compile(model)
+    start = time.perf_counter()
+    _ = model(x) # time through first pass
+    end = time.perf_counter()
+    return end-start
 
 
-def benchmark_build_times(num_layers: int, x: torch.Tensor, num_steps: int=TIMED_STEPS, compile: bool=USE_COMPILE) -> dict:
-    times = []
-    for _ in range (num_steps):
-        model = SimpleNN(SAMPLE_HIDDEN_LAYER_DIM, NUM_CLASSES, num_layers)
-        if compile:
-            model = torch.compile(model)
-        start = time.perf_counter()
-        _ = model(x) # time through first pass
-        end = time.perf_counter()
-        times.append(end-start)
-
-    return summarize_results(times)
-
-
-def benchmark_forward_times(num_layers: int, x: torch.Tensor, timed_steps: int=TIMED_STEPS, warmup_steps: int=WARMUP_STEPS, compile: bool=USE_COMPILE) -> dict:
+def benchmark_forward_times_avg(num_layers: int, x: torch.Tensor, timed_steps: int=TIMED_STEPS, warmup_steps: int=WARMUP_STEPS, compile: bool=USE_COMPILE) -> dict:
     times = []
     model = SimpleNN(SAMPLE_HIDDEN_LAYER_DIM, NUM_CLASSES, num_layers)
     if compile:
@@ -88,15 +72,15 @@ def benchmark_forward_times(num_layers: int, x: torch.Tensor, timed_steps: int=T
             start = time.perf_counter()
             _ = model(x)
             end = time.perf_counter()
-            times.append((end-start) * 1000)
+            times.append(end-start)
 
-    return summarize_results(times)
+    return statistics.mean(times)
 
 
-def summarize_results_repeated(per_run_mean_ms):
-    n = len(per_run_mean_ms)
-    mean = per_run_mean_ms.mean()
-    std = per_run_mean_ms.std(ddof=1)  # sample std, not population. N-1 denominator for sample std.
+def summarize_results_repeated(results):
+    n = len(results)
+    mean = results.mean()
+    std = results.std(ddof=1)  # sample std, not population. N-1 denominator for sample std.
 
     # 95% CI via t-distribution (for small n)
     t_critical = stats.t.ppf(0.975, df=n - 1)
@@ -104,7 +88,7 @@ def summarize_results_repeated(per_run_mean_ms):
     ci_high = mean + t_critical * std / np.sqrt(n)
 
     return {
-        "per_run_mean_ms": per_run_mean_ms,
+        "results": results,
         "mean_ms": mean,
         "std_ms": std,
         "ci95_low_ms": ci_low,
@@ -113,16 +97,16 @@ def summarize_results_repeated(per_run_mean_ms):
     }
 
 
-def benchmark_build_times_repeated(num_layers: int, num_steps_per_run: int=TIMED_STEPS, num_runs: int=NUM_RUNS, compile=USE_COMPILE):
-    per_run_mean_ms = []
+def benchmark_cold_start_times_repeated(num_layers: int, num_builds: int=NUM_BUILDS, compile=USE_COMPILE):
+    per_run_ms = []
 
     x = torch.randn(BATCH_SIZE, SAMPLE_HIDDEN_LAYER_DIM)
-    for _ in range(num_runs):
-        run_results = benchmark_build_times(num_layers, x, num_steps_per_run, compile)
-        per_run_mean_ms.append(run_results["mean_ms"])
+    for _ in range(num_builds):
+        run_results = benchmark_cold_start_time(num_layers, x, compile)
+        per_run_ms.append(run_results)
 
-    per_run_mean_ms = np.array(per_run_mean_ms)
-    return summarize_results_repeated(per_run_mean_ms)
+    per_run_ms = np.array(per_run_ms)
+    return summarize_results_repeated(per_run_ms)
 
 
 def benchmark_forward_times_repeated(num_layers: int, num_steps_per_run: int=TIMED_STEPS, num_warmup_steps_per_run: int=WARMUP_STEPS, num_runs: int=NUM_RUNS, compile=USE_COMPILE):
@@ -130,8 +114,8 @@ def benchmark_forward_times_repeated(num_layers: int, num_steps_per_run: int=TIM
 
     x = torch.randn(BATCH_SIZE, SAMPLE_HIDDEN_LAYER_DIM)
     for _ in range(num_runs):
-        run_results = benchmark_forward_times(num_layers, x, num_steps_per_run, num_warmup_steps_per_run, compile)
-        per_run_mean_ms.append(run_results["mean_ms"])
+        run_results = benchmark_forward_times_avg(num_layers, x, num_steps_per_run, num_warmup_steps_per_run, compile)
+        per_run_mean_ms.append(run_results)
 
     per_run_mean_ms = np.array(per_run_mean_ms)
     return summarize_results_repeated(per_run_mean_ms)
@@ -142,7 +126,7 @@ def plot_benchmark_histogram(
     title: str,
     save_path: str | None = None,
 ) -> None:
-    data = results["per_run_mean_ms"]
+    data = results["results"]
     mean = results["mean_ms"]
     std = results["std_ms"]
     ci_low = results["ci95_low_ms"]
@@ -187,13 +171,12 @@ def main() -> None:
     set_seed(42)
 
     parser = argparse.ArgumentParser()
-    # If --feature is used, args.feature is True; otherwise, it is False
     parser.add_argument('--compile', action='store_true')
     args = parser.parse_args()
     USE_COMPILE = args.compile
 
     for num_layers in BUILD_TEST_LAYER_NUMS:
-        build_results = benchmark_build_times_repeated(num_layers, compile=USE_COMPILE)
+        build_results = benchmark_cold_start_times_repeated(num_layers, compile=USE_COMPILE)
         print(f"Build results for {num_layers} layers: ")
         print(build_results)
         tag = "Compiled" if USE_COMPILE else "Eager"
