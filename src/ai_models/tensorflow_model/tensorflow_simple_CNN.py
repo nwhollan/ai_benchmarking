@@ -28,7 +28,7 @@ TIMED_STEPS = 200
 LR = 1e-3
 
 DEVICE = "/CPU:0"
-USE_COMPILE = True  # whether to wrap steps in tf.function (graph mode)
+#USE_COMPILE = True  # whether to wrap steps in tf.function (graph mode)
 TF_NUM_THREADS = 4
 
 NUM_RUNS = 100
@@ -323,14 +323,15 @@ def main() -> None:
             f"n={train_step_results['n_runs']})"
         )
         train_step_results_save_path = (
-            "train_step_results_compiled.pkl" if use_compile else "train_step_results_eager.pkl"
+            "./results/tensorflow/train_step_results_compiled.pkl" if use_compile else "./results/tensorflow/train_step_results_eager.pkl"
         )
         with open(train_step_results_save_path, "wb") as f:
             pickle.dump(train_step_results, f)
+        histogram_save_path = './results/tensorflow/train_step_histogram_compiled.png' if use_compile else './results/tensorflow/train_step_histogram_eager.png'
         plot_benchmark_histogram(
             train_step_results,
             title="TF graph-mode training-step" if use_compile else "TF eager training-step",
-            save_path="train_step_histogram.png",
+            save_path=histogram_save_path,
         )
 
 
