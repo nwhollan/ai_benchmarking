@@ -288,13 +288,14 @@ def main() -> None:
         f"(95% CI [{train_step_results['ci95_low_ms']:.3f}, {train_step_results['ci95_high_ms']:.3f}], "
         f"n={train_step_results['n_runs']})"
     )
-    train_step_results_save_path = 'train_step_results_compiled.pkl' if USE_COMPILE else 'train_step_results_eager.pkl'
+    train_step_results_save_path = './results/pytorch/train_step_results_compiled.pkl' if USE_COMPILE else './results/pytorch/train_step_results_eager.pkl'
     with open(train_step_results_save_path, 'wb') as f:
         pickle.dump(train_step_results, f)
+    histogram_save_path = './results/pytorch/train_step_histogram_compiled.png' if USE_COMPILE else './results/pytorch/train_step_histogram_eager.png'
     plot_benchmark_histogram(
         train_step_results,
         title="PyTorch compiled training-step" if USE_COMPILE else "PyTorch eager training-step",
-        save_path="train_step_histogram.png",
+        save_path=histogram_save_path,
     )
 
 if __name__ == "__main__":
