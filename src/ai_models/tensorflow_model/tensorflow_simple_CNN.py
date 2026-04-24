@@ -295,15 +295,16 @@ def main() -> None:
             f"n={inference_results['n_runs']})"
         )
         inference_results_save_path = (
-            "inference_results_compiled.pkl" if use_compile else "inference_results_eager.pkl"
+            "./results/tensorflow/inference_results_compiled.pkl" if use_compile else "./results/tensorflow/inference_results_eager.pkl"
         )
         with open(inference_results_save_path, "wb") as f:
             pickle.dump(inference_results, f)
+        inference_histogram_save_path = './results/tensorflow/inference_histogram_compiled.png' if use_compile else './results/tensorflow/inference_histogram_eager.png'
         plot_benchmark_histogram(
             inference_results,
             title="TF graph-mode inference - mean per-batch time" if use_compile
             else "TF eager inference - mean per-batch time",
-            save_path="inference_histogram.png",
+            save_path=inference_histogram_save_path,
         )
 
         # ---- Train Step Benchmark ----

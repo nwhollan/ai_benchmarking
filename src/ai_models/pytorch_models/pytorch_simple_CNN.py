@@ -267,13 +267,14 @@ def main() -> None:
         f"(95% CI [{inference_results['ci95_low_ms']:.3f}, {inference_results['ci95_high_ms']:.3f}], "
         f"n={inference_results['n_runs']})"
     )
-    inference_results_save_path = 'inference_results_compiled.pkl' if USE_COMPILE else 'inference_results_eager.pkl'
+    inference_results_save_path = './results/pytorch/inference_results_compiled.pkl' if USE_COMPILE else './results/pytorch/inference_results_eager.pkl'
     with open(inference_results_save_path, 'wb') as f:
         pickle.dump(inference_results, f)
+    inference_histogram_save_path = './results/pytorch/inference_histogram_compiled.png' if USE_COMPILE else './results/pytorch/inference_histogram_eager.png'
     plot_benchmark_histogram(
         inference_results,
         title="PyTorch compiled inference - mean per-batch time" if USE_COMPILE else "PyTorch eager inference - mean per-batch time",
-        save_path="inference_histogram.png",
+        save_path=inference_histogram_save_path,
     )
 
     # ---- Train Step Benchmark ---- 
