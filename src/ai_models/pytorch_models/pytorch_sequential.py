@@ -1,19 +1,19 @@
 import torch
 import torch.nn as nn
 import time
-import statistics
 import numpy as np
 import random
 import matplotlib.pyplot as plt
 from scipy import stats 
 import argparse
+import pickle
 
 SAMPLE_HIDDEN_LAYER_DIM = 16
 NUM_CLASSES = 2
-WARMUP_STEPS = 100
-TIMED_STEPS = 200
+WARMUP_STEPS = 20
+TIMED_STEPS = 50
 BATCH_SIZE = 64
-NUM_RUNS = 100
+NUM_RUNS = 50
 NUM_BUILDS = 300
 USE_COMPILE = True
 
@@ -47,7 +47,7 @@ class SimpleNN(nn.Module):
         return x
 
 
-def benchmark_cold_start_time(num_layers: int, x: torch.Tensor, compile: bool=USE_COMPILE) -> dict:
+def benchmark_cold_start_time(num_layers: int, x: torch.Tensor, compile: bool=USE_COMPILE) -> float:
     model = SimpleNN(SAMPLE_HIDDEN_LAYER_DIM, NUM_CLASSES, num_layers)
     if compile:
         model = torch.compile(model)
@@ -57,24 +57,14 @@ def benchmark_cold_start_time(num_layers: int, x: torch.Tensor, compile: bool=US
     return end-start
 
 
-def benchmark_forward_times_avg(num_layers: int, x: torch.Tensor, timed_steps: int=TIMED_STEPS, warmup_steps: int=WARMUP_STEPS, compile: bool=USE_COMPILE) -> dict:
-    times = []
-    model = SimpleNN(SAMPLE_HIDDEN_LAYER_DIM, NUM_CLASSES, num_layers)
-    if compile:
-        model = torch.compile(model)
-
+def benchmark_forward_times_avg(model: nn.Module, x: torch.Tensor, timed_steps: int=TIMED_STEPS) -> float:
     with torch.no_grad():
-        for _ in range(warmup_steps):
-            _ = model(x)
-
-    with torch.no_grad():
+        start = time.perf_counter()
         for _ in range (timed_steps):
-            start = time.perf_counter()
             _ = model(x)
-            end = time.perf_counter()
-            times.append(end-start)
+        end = time.perf_counter()
 
-    return statistics.mean(times)
+    return (end-start)/timed_steps
 
 
 def summarize_results_repeated(results):
@@ -109,12 +99,20 @@ def benchmark_cold_start_times_repeated(num_layers: int, num_builds: int=NUM_BUI
     return summarize_results_repeated(per_run_ms)
 
 
-def benchmark_forward_times_repeated(num_layers: int, num_steps_per_run: int=TIMED_STEPS, num_warmup_steps_per_run: int=WARMUP_STEPS, num_runs: int=NUM_RUNS, compile=USE_COMPILE):
+def benchmark_forward_times_repeated(num_layers: int, num_steps_per_run: int=TIMED_STEPS, warmup_steps: int=WARMUP_STEPS, num_runs: int=NUM_RUNS, compile=USE_COMPILE):
     per_run_mean_ms = []
+    model = SimpleNN(SAMPLE_HIDDEN_LAYER_DIM, NUM_CLASSES, num_layers)
+    if compile:
+        model = torch.compile(model)
 
     x = torch.randn(BATCH_SIZE, SAMPLE_HIDDEN_LAYER_DIM)
+
+    with torch.no_grad():
+        for _ in range(warmup_steps):
+            _ = model(x)
+
     for _ in range(num_runs):
-        run_results = benchmark_forward_times_avg(num_layers, x, num_steps_per_run, num_warmup_steps_per_run, compile)
+        run_results = benchmark_forward_times_avg(model, x, num_steps_per_run)
         per_run_mean_ms.append(run_results)
 
     per_run_mean_ms = np.array(per_run_mean_ms)
@@ -133,7 +131,7 @@ def plot_benchmark_histogram(
     ci_high = results["ci95_high_ms"]
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.hist(data, bins=max(len(data)//5, 10), edgecolor="black", alpha=0.75)
+    ax.hist(data, bins=80, edgecolor="black", alpha=0.75)
 
     # Mean line
     ax.axvline(mean, color="red", linestyle="-", linewidth=2,
@@ -158,8 +156,6 @@ def plot_benchmark_histogram(
         fig.savefig(save_path, dpi=120)
         print(f"Saved histogram to {save_path}")
 
-    plt.show()
-
 
 def set_seed(seed: int = 42) -> None:
     random.seed(seed)
@@ -177,17 +173,36 @@ def main() -> None:
 
     for num_layers in BUILD_TEST_LAYER_NUMS:
         build_results = benchmark_cold_start_times_repeated(num_layers, compile=USE_COMPILE)
-        print(f"Build results for {num_layers} layers: ")
+        print(f"Cold start results for {num_layers} layers: ")
         print(build_results)
+
+        dir = './results/pytorch/cold_start_results/'
+        results_save_path = f'cold_start_results_compiled_{num_layers}.pkl' if USE_COMPILE else f'cold_start_results_eager_{num_layers}.pkl'
+        with open(dir + results_save_path, 'wb') as f:
+            pickle.dump(build_results, f)
+
+        hist_results_save_path = f'cold_start_histogram_compiled_{num_layers}.png' if USE_COMPILE else f'cold_start_histogram_eager_{num_layers}.png'
         tag = "Compiled" if USE_COMPILE else "Eager"
-        plot_benchmark_histogram(build_results, f"Pytorch Sequential Average Cold Start Time, {num_layers} Layers" + ", " + tag)
+        plot_benchmark_histogram(build_results, 
+                                 f"Pytorch Sequential Cold Start Time, {num_layers} Layers" + ", " + tag,
+                                 dir + hist_results_save_path)
+
 
     for num_layers in FORWARD_TEST_LAYER_NUMS:
         forward_results = benchmark_forward_times_repeated(num_layers, compile=USE_COMPILE)
         print(f"Forward results for {num_layers} layers: ")
         print(forward_results)
+        
+        dir = './results/pytorch/forward_results/'
+        results_save_path = f'forward_results_compiled_{num_layers}.pkl' if USE_COMPILE else f'forward_results_eager_{num_layers}.pkl'
+        with open(dir + results_save_path, 'wb') as f:
+            pickle.dump(forward_results, f)
+
+        hist_results_save_path = f'forward_histogram_compiled_{num_layers}.png' if USE_COMPILE else f'forward_histogram_eager_{num_layers}.png'
         tag = "Compiled" if USE_COMPILE else "Eager"
-        plot_benchmark_histogram(forward_results, f"Pytorch Sequential Average Steady State Forward Times, {num_layers} Layers" + ", " + tag)
+        plot_benchmark_histogram(forward_results, 
+                                 f"Pytorch Sequential Average Forward Time, {num_layers} Layers" + ", " + tag,
+                                 dir + hist_results_save_path)
 
 
 if __name__ == "__main__":
