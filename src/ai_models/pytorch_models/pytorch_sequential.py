@@ -54,7 +54,7 @@ def benchmark_cold_start_time(num_layers: int, x: torch.Tensor, compile: bool=US
     start = time.perf_counter()
     _ = model(x) # time through first pass
     end = time.perf_counter()
-    return end-start
+    return (end-start) * 1000
 
 
 def benchmark_forward_times_avg(model: nn.Module, x: torch.Tensor, timed_steps: int=TIMED_STEPS) -> float:
@@ -64,7 +64,7 @@ def benchmark_forward_times_avg(model: nn.Module, x: torch.Tensor, timed_steps: 
             _ = model(x)
         end = time.perf_counter()
 
-    return (end-start)/timed_steps
+    return ((end-start)/timed_steps) * 1000
 
 
 def summarize_results_repeated(results):

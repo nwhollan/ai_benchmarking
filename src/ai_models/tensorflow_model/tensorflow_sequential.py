@@ -13,11 +13,11 @@ WARMUP_STEPS = 20
 TIMED_STEPS = 50
 BATCH_SIZE = 64
 NUM_RUNS = 50
-NUM_BUILDS = 300
+NUM_BUILDS = 100
 USE_COMPILE = True
 
-BUILD_TEST_LAYER_NUMS = [10,100,500]
-FORWARD_TEST_LAYER_NUMS = [10,100,500]
+BUILD_TEST_LAYER_NUMS = [10, 100, 500]
+FORWARD_TEST_LAYER_NUMS = [10, 100, 500]
 
 def build_sequential_model(num_layers, num_classes: int=NUM_CLASSES) -> tf.keras.Model:
     layers = []
@@ -51,7 +51,7 @@ def benchmark_cold_start_time(num_layers: int, x: tf.Tensor, compile: bool=USE_C
     _ = infer_fn(x) # time through first pass
     end = time.perf_counter()
 
-    return end-start
+    return (end-start) * 1000
 
 
 def benchmark_forward_times_avg(infer_fn, x: tf.Tensor, timed_steps: int=TIMED_STEPS) -> dict:
@@ -60,7 +60,7 @@ def benchmark_forward_times_avg(infer_fn, x: tf.Tensor, timed_steps: int=TIMED_S
         _ = infer_fn(x)
     end = time.perf_counter()
 
-    return (end-start) / timed_steps
+    return ((end-start) / timed_steps) * 1000
 
 
 def summarize_results_repeated(results):
@@ -197,7 +197,7 @@ def main() -> None:
         plot_benchmark_histogram(forward_results, 
                                  f"TF Sequential Average Forward Time, {num_layers} Layers" + ", " + tag,
                                  dir + hist_results_save_path)
-
+    
 
 if __name__ == "__main__":
     main()
