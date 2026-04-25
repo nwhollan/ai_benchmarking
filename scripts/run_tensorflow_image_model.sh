@@ -1,1 +1,0 @@
-python -m src.ai_models.tensorflow_model.tensorflow_image_classification_model
